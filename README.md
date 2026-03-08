@@ -1,10 +1,13 @@
 # claude-wezterm-notifier
 
-Desktop notifications for Claude Code permission requests, with actions to focus the Wezterm pane or approve directly from the notification.
+Desktop notifications for Claude Code permission requests and task completion, with actions to focus the Wezterm pane or approve directly from the notification.
 
 ## Overview
 
-Claude Code supports hooks that run on specific events. This project provides a `PermissionRequest` hook that fires whenever Claude Code needs user approval before executing a tool. The hook sends a desktop notification with two actions: one to bring the Wezterm pane into focus, and one to approve the request without switching windows.
+Claude Code supports hooks that run on specific events. This project provides two hooks:
+
+- `PermissionRequest` (`permission-notify.sh`) - fires whenever Claude Code needs user approval before executing a tool. Sends a desktop notification with two actions: one to bring the Wezterm pane into focus, and one to approve the request without switching windows.
+- `Stop` (`stop-notify.sh`) - fires when Claude Code finishes a task. Sends a desktop notification with one action to bring the Wezterm pane into focus.
 
 ## Requirements
 
@@ -27,16 +30,17 @@ While not yet tested, this may work on Windows when using something like [wsl-no
    mkdir -p ~/.claude/hooks
    ```
 
-2. Copy the script:
+2. Copy the scripts:
 
    ```sh
    cp permission-notify.sh ~/.claude/hooks/permission-notify.sh
+   cp stop-notify.sh ~/.claude/hooks/stop-notify.sh
    ```
 
-3. Make it executable:
+3. Make them executable:
 
    ```sh
-   chmod +x ~/.claude/hooks/permission-notify.sh
+   chmod +x ~/.claude/hooks/permission-notify.sh ~/.claude/hooks/stop-notify.sh
    ```
 
 4. Merge the hook configuration into `~/.claude/settings.json`. If you have no existing settings file:
@@ -47,7 +51,7 @@ While not yet tested, this may work on Windows when using something like [wsl-no
 
 ## Configuration
 
-The hook is registered in `~/.claude/settings.json` as a `PermissionRequest` handler:
+The hooks are registered in `~/.claude/settings.json`:
 
 ```json
 {
@@ -62,22 +66,43 @@ The hook is registered in `~/.claude/settings.json` as a `PermissionRequest` han
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/stop-notify.sh"
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-The empty `matcher` causes the hook to fire for all permission requests regardless of tool name.
+The empty `matcher` causes each hook to fire for all matching events regardless of tool name.
 
 ## How it works
 
-1. Claude Code invokes the script with the permission request as JSON on stdin.
+### Permission requests
+
+1. Claude Code invokes `permission-notify.sh` with the permission request as JSON on stdin.
 2. The script parses the tool name, working directory, and tool-specific fields using `jq`.
 3. If the Wezterm pane running Claude Code is already focused, the script exits silently.
 4. Otherwise, a desktop notification is sent with two actions:
    - **Open** - calls `wezterm cli activate-pane` to bring the pane into focus.
-   - **Allow** - writes a JSON approval response to stdout, which Claude Code reads to grant the permission without user switching windows.
+   - **Allow** - writes a JSON approval response to stdout, which Claude Code reads to grant the permission without the user switching windows.
 5. The notification expires after 30 seconds.
+
+### Task completion
+
+1. Claude Code invokes `stop-notify.sh` when a task finishes.
+2. If the Wezterm pane running Claude Code is already focused, the script exits silently.
+3. Otherwise, a desktop notification is sent with one action:
+   - **Open** - calls `wezterm cli activate-pane` to bring the pane into focus.
+4. The notification expires after 30 seconds.
 
 ## Limitations
 
